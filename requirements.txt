@@ -1,0 +1,15 @@
+langchain
+langchain-google-genai
+langchain-pinecone
+bs4
+playwright
+setuptools
+python-dotenv
+sentence-transformers
+fastapi
+uvicorn
+duckduckgo-search
+grandalf #graph view
+ddgs
+
+-e .
