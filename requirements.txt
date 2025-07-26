@@ -18,8 +18,10 @@
 langgraph
 langchain
 langchain-google-genai
+langchain-openai
 langchain-pinecone
 python-dotenv
+pinecone
 sentence-transformers
 fastapi
 uvicorn
