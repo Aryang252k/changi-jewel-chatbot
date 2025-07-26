@@ -1,3 +1,4 @@
+langgraph
 langchain
 langchain-google-genai
 langchain-pinecone
@@ -13,3 +14,15 @@ grandalf #graph view
 ddgs
 
 # -e .
+
+langgraph
+langchain
+langchain-google-genai
+langchain-pinecone
+python-dotenv
+sentence-transformers
+fastapi
+uvicorn
+duckduckgo-search
+grandalf #graph view
+ddgs
