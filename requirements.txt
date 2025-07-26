@@ -21,6 +21,7 @@ langchain-google-genai
 langchain-openai
 langchain-pinecone
 python-dotenv
+langchain-community
 pinecone
 sentence-transformers
 fastapi
