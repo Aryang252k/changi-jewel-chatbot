@@ -12,4 +12,4 @@ duckduckgo-search
 grandalf #graph view
 ddgs
 
--e .
+# -e .
