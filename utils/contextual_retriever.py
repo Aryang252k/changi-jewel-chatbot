@@ -1,5 +1,4 @@
 import os
-from functools import lru_cache
 import asyncio
 
 _cached_components = None

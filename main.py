@@ -10,15 +10,13 @@ import uvicorn
 # Request/Response Models
 class ChatRequest(BaseModel):
     message: str
-    thread_id: Optional[str] = None
+    conversation_history: List[Dict[str, Any]]
 
 class ChatResponse(BaseModel):
     response: str
     query_type: str
-    processing_time: float
     conversation_history: List[Dict[str, Any]]
-    thread_id: str
-
+    
 class PerformanceTestResponse(BaseModel):
     total_time: float
     average_time: float
@@ -30,43 +28,29 @@ class Chatbot:
         self.app, self.components = create_chatbot_graph()
         self.default_thread_id = "1"
     
-    async def chat(self, user_input: str, thread_id: str = None) -> Dict[str, Any]:
+    async def chat(self, user_input: str,conversation_history:List) -> Dict[str, Any]:
         """Fast chat processing with timing"""
-        start_time = time.time()
-        
-        # Use provided thread_id or default
-        session_thread_id = thread_id or self.default_thread_id
-        
+
         # Assuming you have ChatbotState defined elsewhere
-        initial_state = ChatbotState(user_query=user_input, start_time=start_time)
-        config = {"configurable": {"thread_id": session_thread_id}}
-        
+        initial_state = ChatbotState(user_query=user_input,conversation_history=conversation_history)
+    
         try:
-            result = await self.app.ainvoke(initial_state.model_dump(), config=config)
+            result = await self.app.ainvoke(initial_state.model_dump())
             return {
                 "response": result["final_response"],
                 "query_type": result["query_type"], 
-                "processing_time": result.get("processing_time", time.time() - start_time),
                 "conversation_history": result.get("conversation_history", []),
-                "thread_id": session_thread_id
             }
         except Exception as e:
             return {
                 "response": f"Error: {str(e)}",
                 "query_type": "error",
-                "processing_time": time.time() - start_time,
                 "conversation_history": [],
-                "thread_id": session_thread_id
             }
         
 
-
-
 # Global chatbot instance
 chatbot_instance = None
-
-
-   
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -110,9 +94,8 @@ async def chat_endpoint(request: ChatRequest):
     """Main chat endpoint"""
     if not chatbot_instance:
         raise HTTPException(status_code=500, detail="Chatbot not initialized")
-    
     try:
-        result = await chatbot_instance.chat(request.message, request.thread_id)
+        result = await chatbot_instance.chat(request.message,request.conversation_history)
         return ChatResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat processing error: {str(e)}")

@@ -1,8 +1,7 @@
 import time
-from typing import Dict, Any, List, Literal
+from typing import Literal,List,Dict,Any
 import re
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.prompts import ChatPromptTemplate
 from model.llms import LLMs
 from utils.contextual_retriever import get_cached_components
@@ -16,15 +15,12 @@ class TaskType(BaseModel):
     type: Literal["chitchat", "vector_search", "web_search"] = Field(..., description="Type of user request")
 
 class ChatbotState(BaseModel):
-    messages: List[Dict[str, Any]] = []
     user_query: str = ""
     query_type: Literal["chitchat", "vector_search", "web_search", "unknown"] = "unknown"
     search_results: str = ""
     vector_results: str = ""
     final_response: str = "" 
-    conversation_history: List[Dict[str, Any]] = []
-    processing_time: float = 0.0
-    start_time: float = 0.0
+    conversation_history: List[Dict[str, Any]]
 
 #components with caching and faster models
 class ChatbotComponents:
@@ -79,7 +75,6 @@ class ChatbotComponents:
 # query analyzer with caching and pattern matching
 def query_analyzer(state: ChatbotState, components: ChatbotComponents) -> ChatbotState:
     """Optimized query analysis with caching and pattern matching"""
-    state.start_time = time.time()
     
     query = state.user_query.lower().strip()
     
@@ -96,7 +91,15 @@ def query_analyzer(state: ChatbotState, components: ChatbotComponents) -> Chatbo
             return state
     
     # Quick heuristics before LLM call
-    web_indicators = ['news', 'today', 'current', 'latest', 'recent', '2024', '2025', 'weather']
+    web_indicators = [
+    "news", "today", "current", "latest", "recent", "update", "updates",
+    "weather", "temperature", "rain", "forecast",
+    "promotion", "promotions", "events", "happening", "sale", "discount",
+    "now", "live", "open now", "closed now",
+    "today's flights", "flight status", "delay", "cancellation",
+    "2024", "2025", "this week", "this weekend", "next week"
+]
+
     
     if any(word in query for word in web_indicators):
         state.query_type = "web_search"
@@ -105,7 +108,7 @@ def query_analyzer(state: ChatbotState, components: ChatbotComponents) -> Chatbo
         try:
             classification_prompt = ChatPromptTemplate.from_template(query_classifier)
             
-            messages = classification_prompt.format_messages(query=state.user_query)
+            messages = classification_prompt.format_messages(query=state.user_query,context=state.conversation_history)
             llm_struct = components.classifier_llm.with_structured_output(TaskType)
             response=llm_struct.invoke(messages)
             classification = response.type.strip().lower()
@@ -150,7 +153,7 @@ def chitchat_handler(state: ChatbotState, components: ChatbotComponents) -> Chat
     chitchat_prompt = ChatPromptTemplate.from_template(chitchathandler)
     
     try:
-        messages = chitchat_prompt.format_messages(query=state.user_query)
+        messages = chitchat_prompt.format_messages(query=state.user_query,context=state.conversation_history)
         response = components.response_llm.invoke(messages)
         state.final_response = response.content
      
@@ -198,13 +201,15 @@ async def vector_search_handler(state: ChatbotState, components: ChatbotComponen
         
         # Generate response immediately after vector search completes
         messages = rag_prompt.format_messages(
-            context=state.vector_results,
-            query=state.user_query
+            query=state.user_query,
+            knowledge_base=state.vector_results,
+            context=state.conversation_history
+            
         )
         
         response = await asyncio.wait_for(
             components.response_llm.ainvoke(messages),
-            timeout=20
+            timeout=40
         )
         state.final_response = response.content
     
@@ -234,7 +239,8 @@ def timeout_web_search_handler(state: ChatbotState, components: ChatbotComponent
         
         messages = web_prompt.format_messages(
             search_results=state.search_results,
-            query=state.user_query
+            query=state.user_query,
+            context=state.conversation_history
         )
         response = components.response_llm.invoke(messages)
         state.final_response = response.content
@@ -245,25 +251,7 @@ def timeout_web_search_handler(state: ChatbotState, components: ChatbotComponent
     
     return state
 
-def fast_memory_updater(state: ChatbotState, components: ChatbotComponents) -> ChatbotState:
-    """Lightweight memory update"""
-    state.processing_time = time.time() - state.start_time
-    
-    # Simplified memory update
-    interaction = {
-        "query": state.user_query,
-        "type": state.query_type,
-        "response": state.final_response,
-        "time": round(state.processing_time, 2)
-    }
-    
-    state.conversation_history.append(interaction)
-    
-    # Keep only last 5 interactions for speed
-    if len(state.conversation_history) > 5:
-        state.conversation_history = state.conversation_history[-5:]
-    
-    return state
+
 
 def create_vector_search_node(components):
     async def vector_search_node(state):
@@ -274,13 +262,12 @@ def create_vector_search_node(components):
 def create_chatbot_graph():
     """Create speed-optimized LangGraph chatbot"""
     components = ChatbotComponents()
-    memory = MemorySaver()
     workflow = StateGraph(ChatbotState)
     workflow.add_node("analyze_query", lambda state: query_analyzer(state, components))
     workflow.add_node("chitchat", lambda state: chitchat_handler(state, components))
     workflow.add_node("vector_search", create_vector_search_node(components))
     workflow.add_node("web_search", lambda state: timeout_web_search_handler(state, components))
-    workflow.add_node("update_memory", lambda state: fast_memory_updater(state, components))
+   
     
     def route_query(state: ChatbotState) -> str:
         return state.query_type if state.query_type != "unknown" else "chitchat"
@@ -297,12 +284,12 @@ def create_chatbot_graph():
         }
     )
     
-    workflow.add_edge("chitchat", "update_memory")
-    workflow.add_edge("vector_search", "update_memory")
-    workflow.add_edge("web_search", "update_memory")
-    workflow.add_edge("update_memory", END)
+    workflow.add_edge("chitchat",END)
+    workflow.add_edge("vector_search", END)
+    workflow.add_edge("web_search", END)
+   
     
-    app = workflow.compile(checkpointer=memory)
+    app = workflow.compile()
     return app, components
 
 

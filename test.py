@@ -205,7 +205,13 @@ import requests
 BASE_URL = f"http://localhost:8000"
 
 def send_query(query: str):
-    response = requests.post(f"{BASE_URL}/chat", json={"message": query})
+    response = requests.post(f"{BASE_URL}/chat", json={"message": query,"conversation_history": [
+                {
+                    "role":  "user",
+                    "content": "hello"
+                }
+                
+            ]})
     if response.ok:
         print("Response:", response.json())
     else:
