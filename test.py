@@ -202,7 +202,7 @@
 
 import requests
 
-BASE_URL = f"http://localhost:8000"
+BASE_URL = f"https://changi-jewel-chatbot-984541274284.europe-west1.run.app"
 
 def send_query(query: str):
     response = requests.post(f"{BASE_URL}/chat", json={"message": query,"conversation_history": [

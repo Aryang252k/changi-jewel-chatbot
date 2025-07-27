@@ -1,4 +1,3 @@
-import time
 from typing import Literal,List,Dict,Any
 import re
 from langgraph.graph import StateGraph, END
@@ -22,14 +21,13 @@ class ChatbotState(BaseModel):
     final_response: str = "" 
     conversation_history: List[Dict[str, Any]]
 
-#components with caching and faster models
 class ChatbotComponents:
     def __init__(self):
         self.llm=LLMs()
 
         self.classifier_llm = self.llm.gemini_llm(
             temperature=0.1,
-            max_tokens=50,  # Very short responses for classification
+            max_tokens=50,  
         )
         
         # Use better model for final responses
@@ -40,7 +38,7 @@ class ChatbotComponents:
         if not self.classifier_llm:
             self.classifier_llm = self.llm.openai_llm(
             temperature=0.1,
-            max_tokens=50,  # Very short responses for classification
+            max_tokens=50,  
         )
             
         if not self.response_llm:
@@ -48,9 +46,6 @@ class ChatbotComponents:
             temperature=0.7 
         )
 
-        
-        
-        # Initialize web search with timeout
         self.web_search = DuckDuckGoSearchRun()
         
         # Enhanced chitchat patterns for faster classification
@@ -68,7 +63,7 @@ class ChatbotComponents:
         self.classification_cache = {}
         self.cache_max_size = 100
 
-        # Thread pool for parallel operations
+        
         self.executor = ThreadPoolExecutor(max_workers=3)
 
  
@@ -179,7 +174,7 @@ async def fast_contextual_compression_async(query):
 async def vector_search_handler(state: ChatbotState, components: ChatbotComponents) -> ChatbotState:
     """fast parallel processing version"""
     try:
-        
+
         # Create async task for vector search
         vector_task = asyncio.create_task(
             fast_contextual_compression_async(state.user_query)
@@ -188,8 +183,7 @@ async def vector_search_handler(state: ChatbotState, components: ChatbotComponen
         # Prepare LLM prompt template while vector search runs
         rag_prompt = ChatPromptTemplate.from_template(vectorsearch)
         
-        # Wait for vector search with timeout
-        docs = await asyncio.wait_for(vector_task, timeout=20)
+        docs = await asyncio.wait_for(vector_task, timeout=40)
         
         if docs:
             state.vector_results = "\n".join([
