@@ -48,80 +48,32 @@ class ChatbotComponents:
         )
 
         self.web_search = DuckDuckGoSearchRun()
-        
-        # Enhanced chitchat patterns for faster classification
-        self.chitchat_patterns = [
-            r'\b(hello|hi|hey|hii|howdy|sup)\b',
-            r'\b(how are you|what\'s up|whats up|wassup)\b',
-            r'\b(good morning|good afternoon|good evening|gm|gn)\b',
-            r'\b(bye|goodbye|see you|take care|cya|ttyl)\b',
-            r'\b(thank you|thanks|thx|ty)\b',
-            r'\b(please|sorry|excuse me)\b',
-            r'\b(yes|no|ok|okay|sure|alright)\b'
-        ]
-        
-        # Cache for recent classifications
-        self.classification_cache = {}
-        self.cache_max_size = 100
-
+         
         
         self.executor = ThreadPoolExecutor(max_workers=3)
 
  
-# query analyzer with caching and pattern matching
+# query analyzer 
 def query_analyzer(state: ChatbotState, components: ChatbotComponents) -> ChatbotState:
-    """Optimized query analysis with caching and pattern matching"""
-    
-    query = state.user_query.lower().strip()
-    
-    # Check cache first
-    if query in components.classification_cache:
-        state.query_type = components.classification_cache[query]
-        return state
-    
-    # Fast pattern matching for chitchat
-    for pattern in components.chitchat_patterns:
-        if re.search(pattern, query, re.IGNORECASE):
-            state.query_type = "chitchat"
-            components.classification_cache[query] = "chitchat"
-            return state
-    
-    # Quick heuristics before LLM call
-    web_indicators = [
-    "news", "today", "current", "latest", "recent", "update", "updates",
-    "weather", "temperature", "rain", "forecast",
-    "promotion", "promotions", "events", "happening", "sale", "discount",
-    "now", "live", "open now", "closed now",
-    "today's flights", "flight status", "delay", "cancellation",
-    "2024", "2025", "this week", "this weekend", "next week"
-]
-    
-    if any(word in query for word in web_indicators):
-        state.query_type = "web_search"
-        state.user_query= response.question
+    """Optimized query analysis"""  
+    try:
+        classification_prompt = ChatPromptTemplate.from_template(query_classifier)
         
-    else:
-        try:
-            classification_prompt = ChatPromptTemplate.from_template(query_classifier)
-            
-            messages = classification_prompt.format_messages(query=state.user_query,context=state.conversation_history)
-            llm_struct = components.classifier_llm.with_structured_output(TaskType)
-            response=llm_struct.invoke(messages)
-            classification = response.type.strip().lower()
-            
-            if classification in ["chitchat", "vector_search", "web_search"]:
-                state.query_type = classification
-                state.user_query= response.question
-            else:
-                state.query_type = "chitchat"
-                
-        except Exception as e:
-            print(f"Classification error: {e}")
+        messages = classification_prompt.format_messages(query=state.user_query,context=state.conversation_history)
+        llm_struct = components.classifier_llm.with_structured_output(TaskType)
+        response=llm_struct.invoke(messages)
+        classification = response.type.strip().lower()
+        
+        if classification in ["chitchat", "vector_search", "web_search"]:
+            state.query_type = classification
+            state.user_query= response.question
+        else:
             state.query_type = "chitchat"
+            
+    except Exception as e:
+        print(f"Classification error: {e}")
+        state.query_type = "chitchat"
     
-    # Cache the result
-    if len(components.classification_cache) < components.cache_max_size:
-        components.classification_cache[query] = state.query_type
     
     return state
 
