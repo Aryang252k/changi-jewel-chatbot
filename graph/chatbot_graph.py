@@ -17,6 +17,7 @@ class TaskType(BaseModel):
 class ChatbotState(BaseModel):
     user_query: str = ""
     query_type: Literal["chitchat", "vector_search", "web_search", "unknown"] = "unknown"
+    search_vector_query: str= ""
     search_results: str = ""
     vector_results: str = ""
     final_response: str = "" 
@@ -27,8 +28,7 @@ class ChatbotComponents:
         self.llm=LLMs()
 
         self.classifier_llm = self.llm.gemini_llm(
-            temperature=0.1,
-            max_tokens=50,  
+            temperature=0.4 
         )
         
         # Use better model for final responses
@@ -38,8 +38,7 @@ class ChatbotComponents:
 
         if not self.classifier_llm:
             self.classifier_llm = self.llm.openai_llm(
-            temperature=0.1,
-            max_tokens=50,  
+            temperature=0.4  
         )
             
         if not self.response_llm:
@@ -66,7 +65,7 @@ def query_analyzer(state: ChatbotState, components: ChatbotComponents) -> Chatbo
         
         if classification in ["chitchat", "vector_search", "web_search"]:
             state.query_type = classification
-            state.user_query= response.question
+            state.search_vector_query= response.question
         else:
             state.query_type = "chitchat"
             
@@ -131,7 +130,7 @@ async def vector_search_handler(state: ChatbotState, components: ChatbotComponen
 
         # Create async task for vector search
         vector_task = asyncio.create_task(
-            fast_contextual_compression_async(state.user_query)
+            fast_contextual_compression_async(state.search_vector_query)
         )
         
         # Prepare LLM prompt template while vector search runs
@@ -173,7 +172,7 @@ def timeout_web_search_handler(state: ChatbotState, components: ChatbotComponent
     """Web search with timeout and fallback"""
     def search_with_timeout():
         try:
-            return components.web_search.invoke(state.user_query)
+            return components.web_search.invoke(state.search_vector_query)
         except Exception as e:
             return f"Search unavailable: {str(e)}"
         
