@@ -218,4 +218,4 @@ def send_query(query: str):
         print("Error:", response.status_code)
 
 if __name__ == "__main__":
-    send_query("What is Changi?")
+    send_query("What is Changi airport?")
