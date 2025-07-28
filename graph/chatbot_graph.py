@@ -12,6 +12,7 @@ import asyncio
 
 class TaskType(BaseModel):
     type: Literal["chitchat", "vector_search", "web_search"] = Field(..., description="Type of user request")
+    question: str=Field(...,description="Complete question with context for vector search or websearch")
 
 class ChatbotState(BaseModel):
     user_query: str = ""
@@ -94,12 +95,12 @@ def query_analyzer(state: ChatbotState, components: ChatbotComponents) -> Chatbo
     "today's flights", "flight status", "delay", "cancellation",
     "2024", "2025", "this week", "this weekend", "next week"
 ]
-
     
     if any(word in query for word in web_indicators):
         state.query_type = "web_search"
+        state.user_query= response.question
+        
     else:
-        # Only use LLM for ambiguous cases
         try:
             classification_prompt = ChatPromptTemplate.from_template(query_classifier)
             
@@ -110,6 +111,7 @@ def query_analyzer(state: ChatbotState, components: ChatbotComponents) -> Chatbo
             
             if classification in ["chitchat", "vector_search", "web_search"]:
                 state.query_type = classification
+                state.user_query= response.question
             else:
                 state.query_type = "chitchat"
                 
